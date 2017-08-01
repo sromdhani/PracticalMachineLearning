@@ -1,0 +1,127 @@
+---
+title: "Practical Machine Learning Project"
+author: "Sihem Romdhani"
+date: "July 30, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Introduction
+
+The goal of the project is to build a predection model to investigate and predict the quality of the activity being performed. In fact, it aims to assess whether we could detect mistakes in weight-lifting exercises.
+For the experiments, we have used the Weight Lifting Exercises (WLE) dataset which contains information about six participants who were performing one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:
+
+Class A - exactly according to the specification,
+Class B - throwing the elbows to the front,
+Class C - lifting the dumbbell only halfway,
+Class D - lowering the dumbbell only halfway,
+Class E - throwing the hips to the front.
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+The data is colleceted from sensors in the user's glove, armband, lumbar belt and bumbbell. 
+## Exploratory analysis
+
+We first load the dataset: the training and testing data. 
+
+```{r}
+training <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"))
+testing <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"))
+```
+
+We need to do some preliminary analysis in order to understand the data.
+The training dataset comes with 19622 observations of 160 variables.
+The target class is given by the variable "classe"" in the last column which is a factor variable with 5 levels “A”,“B”,“C”,“D”, and “E”. Each class is sufficiently represented in the training dataset. 
+The testing dataset comes with 20 observations. However the target classe is missing in the testing data and replaced by a variable "problem_id"" for identification purposes of the 20 test cases.
+Both the training and testing datasets contain big number of NA values that need to be cleaned.
+
+```{r}
+dim(training)
+dim(testing)
+names(testing)[names(testing) != names(training)]
+str(training$classe)
+summary(training$classe)
+sum(is.na(training))
+sum(is.na(testing))
+
+```
+
+## Data Cleansing
+Remove columns where the number of NA rwos is more than 50 % of thr total training set.
+This will remove 67 colums and we notice that we do not have NA in the data anymore.
+```{r}
+clean_training <- training[, colSums(is.na(training)) <=nrow(training)/2]
+sum(is.na(clean_training))
+```
+
+## Feature Extraction
+The sensors located on the belt, forearm, arm, and dumbell provided information about the Euler angles (roll, pitch, and yaw) and three-axes (x,y,z) acceleration , gyroscope, and magnetometer.
+In order to avoid using corrolated data, we will only use these raw measurements.
+Then use the same features for the testing Set.
+```{r}
+featureIdx <- c(grep("^accel", names(clean_training)), grep("^gyros", names(clean_training)), 
+    grep("^magnet", names(clean_training)), grep("^roll", names(clean_training)), grep("^pitch", 
+        names(clean_training)), grep("^yaw", names(clean_training)))
+classeIdx <- grep("classe",names(clean_training))
+trainSet <- clean_training[, c(featureIdx,classeIdx)]
+names(trainSet)
+testSet <- testing[, names(trainSet)[!names(trainSet)%in%c("classe")]]
+```
+
+## Cross Validation
+
+We have used cross-validation in order to evaluate our prediction model.
+We split the training set into 80% for training and 20% for testin/validation.
+```{R}
+library(caret)
+set.seed(1234)
+inTrain <- createDataPartition(y = trainSet$classe, p = 0.8, list = FALSE)
+cvTrain <- trainSet[inTrain, ]
+cvTest <- trainSet[-inTrain, ]
+```
+
+
+## Prediction Model
+
+Traing a Random forest algorith to predict the class after centring and scaling the dataset.
+
+```{R}
+set.seed(1234)
+fit <- train(classe ~. , data = cvTrain, method = 'rf', preProcess = c("center", 
+    "scale"))
+```
+
+Summary of the trained model
+
+```{r}
+print(fit)
+```
+
+## Expected Out-of-Sample Error
+
+We achieve a prediction accuracy of 99% and 98.7 with the kappa measurment on the training set (cvTrain). Now we need to evaluate the model on data that it has never seen before.
+
+```{r}
+prediction <- predict(fit, newdata= cvTest)
+
+confusionMatrix(data= prediction, reference = cvTest$classe)
+```
+
+On the test Set, the accuracy of the model is 99.6%
+
+## Predicting the Test Dataset
+```{r}
+result <- predict(fit, newdata= testSet)
+print(result)
+```
+
+From the quizz we got 100 accuracy
+## Conclusion
+
+We show that we were able to reach 99.6% accuracy on the cross validation test set) using just the raw data collected from the physical sensor data. However the random forest was very slow to train.
+Howvere The Random forest is very slow to train.
+We have seen that Classe A and Classe E are the class with the highest accuarcy.
+In the future, we may try to train using other variable. or reduce the dimentionality of the data using some algorithm like PCA.
+
